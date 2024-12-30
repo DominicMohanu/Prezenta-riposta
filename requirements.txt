@@ -1,0 +1,4 @@
+datasette
+datasette-dashboards
+datasette-sqlite-http
+datasette-render-xlsx

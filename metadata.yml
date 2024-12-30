@@ -1,0 +1,249 @@
+title: Datasette Dashboards Demo
+about: NFC Attendance Tracking
+about_url: https://github.com/your-repo-url
+description_html: |-
+  <div class="message-info">
+    <p>Welcome to the NFC Attendance Tracking dashboard demo!</p>
+    <ul class="bullets">
+      <li>Browse dashboards at <a href="/-/dashboards">/-/dashboards</a></li>
+      <li>Explore embedded dashboards at <a href="/embedded_dashboard">/embedded_dashboard</a></li>
+      <li>Analyze attendance data with interactive filters.</li>
+    </ul>
+  </div>
+
+plugins:
+  datasette-sqlite-http:
+    UNSAFE_allow_http_requests: true
+
+  datasette-write-ui:
+    enabled: true
+
+  datasette-dashboards:
+    attendance-stats:
+      title: Attendance Statistics
+      description: Explore attendance trends using RFID data.
+      layout:
+        - [attendance-overview, daily-attendance, attendance-by-user, recent-attendance]
+        - [tag-usage, latest-logs, latest-logs, daily-breakdown]
+      filters:
+        date_start:
+          name: Date Start
+          type: date
+          default: "2024-01-01"
+        date_end:
+          name: Date End
+          type: date
+          default: "2024-12-31"
+        name:
+          name: User Name
+          type: text
+      charts:
+        attendance-overview:
+          title: Attendance Overview
+          db: nfc_data
+          query: >-
+            SELECT 
+              COUNT(DISTINCT tag_id) AS tags,
+              COUNT(*) AS scans
+            FROM tags
+            WHERE 1=1
+              AND (:date_start IS NULL OR date(timestamp) >= date(:date_start))
+              AND (:date_end IS NULL OR date(timestamp) <= date(:date_end))
+              AND (:name IS "" OR name = :name)
+          library: table
+          display:
+            columns: [tags, scans]
+
+        daily-attendance:
+          title: Daily Attendance
+          db: nfc_data
+          query: >-
+            SELECT
+              DATE(timestamp) AS day,
+              COUNT(*) AS scans
+            FROM tags
+            WHERE 1=1
+              AND (:date_start IS NULL OR date(timestamp) >= date(:date_start))
+              AND (:date_end IS NULL OR date(timestamp) <= date(:date_end))
+              AND (:name IS "" OR name = :name)
+            GROUP BY day
+            ORDER BY day DESC
+          library: vega-lite
+          display:
+            mark: { type: line, point: true, tooltip: true }
+            encoding:
+              x: { field: day, type: temporal, timeUnit: yearmonthdate, axis: { title: "day (year-month-date)" } }
+              y: { field: scans, type: quantitative, axis: { title: "count" } }
+              tooltip: [ { field: day, type: temporal }, { field: scans, type: quantitative } ]
+
+        attendance-by-user:
+          title: Attendance by User
+          db: nfc_data
+          query: >-
+            SELECT
+              name,
+              COUNT(*) AS scans
+            FROM tags
+            WHERE 1=1
+              AND (:date_start IS NULL OR date(timestamp) >= date(:date_start))
+              AND (:date_end IS NULL OR date(timestamp) <= date(:date_end))
+              AND (:name IS "" OR name = :name)
+            GROUP BY name
+            ORDER BY scans DESC
+          library: table
+          display:
+            columns: [ name, scans ]
+            order_by: scans DESC
+
+        recent-attendance:
+          title: Attendance in the Last 3 Months
+          db: nfc_data
+          query: >-
+            SELECT
+              strftime('%Y-%m', timestamp) AS month,
+              COUNT(*) AS scans
+            FROM tags
+            WHERE timestamp >= date('now', '-3 months')
+            GROUP BY month
+            ORDER BY month DESC
+          library: vega-lite
+          display:
+            mark: { type: bar, tooltip: true }
+            encoding:
+              x: { field: month, type: nominal, axis: { title: "Month (Last 3 Months)" } }
+              y: { field: scans, type: quantitative, axis: { title: "Attendance Count" } }
+              tooltip: [ { field: month, type: nominal }, { field: scans, type: quantitative } ]
+
+        tag-usage:
+          title: Tag Usage Frequency
+          db: nfc_data
+          query: >-
+            SELECT
+              tag_id,
+              COUNT(*) AS usage_count
+            FROM tags
+            WHERE 1=1
+              AND (:date_start IS NULL OR date(timestamp) >= date(:date_start))
+              AND (:date_end IS NULL OR date(timestamp) <= date(:date_end))
+              AND (:name IS "" OR name = :name)
+            GROUP BY tag_id
+            ORDER BY usage_count DESC
+          library: vega-lite
+          display:
+            mark: { type: bar, tooltip: true }
+            encoding:
+              x: { field: tag_id, type: nominal }
+              y: { field: usage_count, type: quantitative }
+
+        latest-logs:
+          title: Latest Scans
+          db: nfc_data
+          query: >-
+            SELECT
+              timestamp,
+              tag_id,
+              name
+            FROM tags
+            WHERE 1=1
+              AND (:date_start IS NULL OR date(timestamp) >= date(:date_start))
+              AND (:date_end IS NULL OR date(timestamp) <= date(:date_end))
+              AND (:name IS "" OR name = :name)
+            ORDER BY timestamp DESC
+          library: table
+          display:
+            columns: [timestamp, name]
+
+        daily-breakdown:
+          title: Daily Tag Breakdown
+          db: nfc_data
+          query: >-
+            SELECT
+              DATE(timestamp) AS day,
+              tag_id,
+              COUNT(*) AS scans
+            FROM tags
+            WHERE 1=1
+              AND (:date_start IS NULL OR date(timestamp) >= date(:date_start))
+              AND (:date_end IS NULL OR date(timestamp) <= date(:date_end))
+              AND (:name IS "" OR name = :name)
+            GROUP BY day, tag_id
+            ORDER BY day DESC, scans DESC
+          library: table
+          display:
+            columns: [day, scans]
+    players-dashboard:
+      title: Players dashboard
+      description: View player details and stats
+      layout:
+        - [ players-list, players-attendance ]
+      filters:
+        sex:
+          name: Sex
+          type: select
+          options:
+            - ''
+            - 'male'
+            - 'female'
+          default: ''
+        active:
+          name: Active
+          type: select
+          options:
+            - ''
+            - 'active'
+            - 'non-active'
+          default: ''
+        categorie_varsta:
+          name: Categorie Varsta
+          type: select
+          options:
+            - ''
+            - 'U9'
+            - 'U11'
+            - 'U13'
+            - 'U14'
+            - 'U17'
+            - 'U19'
+          default: ''
+        dominant_hand:
+          name: dominant_hand
+          type: select
+          options:
+            - ''
+            - 'left'
+            - 'right'
+          default: ''
+      charts:
+        players-list:
+          title: Players List
+          db: nfc_data
+          query: >-
+            SELECT DISTINCT
+              name,
+              sex,
+              date_of_birth
+            FROM sportivi
+            WHERE 1=1
+              AND (:sex = '' OR sex = :sex)
+              AND (:active = '' OR active = :active)
+              AND (:dominant_hand = '' OR dominant_hand = :dominant_hand)
+              AND (:categorie_varsta = '' OR
+                (
+                  (:categorie_varsta = 'U9' AND (strftime('%Y', 'now') - strftime('%Y', date_of_birth)) <= 9) OR
+                  (:categorie_varsta = 'U11' AND (strftime('%Y', 'now') - strftime('%Y', date_of_birth)) <= 11) OR
+                  (:categorie_varsta = 'U13' AND (strftime('%Y', 'now') - strftime('%Y', date_of_birth)) <= 13) OR
+                  (:categorie_varsta = 'U14' AND (strftime('%Y', 'now') - strftime('%Y', date_of_birth)) <= 14) OR
+                  (:categorie_varsta = 'U17' AND (strftime('%Y', 'now') - strftime('%Y', date_of_birth)) <= 17) OR
+                  (:categorie_varsta = 'U19' AND (strftime('%Y', 'now') - strftime('%Y', date_of_birth)) <= 19)
+                )
+              )
+            ORDER BY name
+          library: table
+          display:
+            columns: [ name, sex, date_of_birth ]
+
+
+
+  datasette-render-xlsx:
+    max_rows: 1000000
+    do_not_render: false
